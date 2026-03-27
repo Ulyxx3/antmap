@@ -89,10 +89,14 @@ fn main() -> anyhow::Result<()> {
 
     // 3. Otherwise, parse CLI arguments normally
     let args = Args::parse();
-    
+
     // Validate required arguments for CLI
-    let from = args.from.ok_or_else(|| anyhow::anyhow!("--from is required in CLI mode"))?;
-    let to = args.to.ok_or_else(|| anyhow::anyhow!("--to is required in CLI mode"))?;
+    let from = args
+        .from
+        .ok_or_else(|| anyhow::anyhow!("--from is required in CLI mode"))?;
+    let to = args
+        .to
+        .ok_or_else(|| anyhow::anyhow!("--to is required in CLI mode"))?;
 
     let config = engine::EngineConfig {
         from,

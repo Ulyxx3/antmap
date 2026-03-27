@@ -64,16 +64,20 @@ pub fn run_routing(config: EngineConfig) -> anyhow::Result<EngineResult> {
         "Snapped start to OSM node {} (offset: {:.1}m)",
         start_osm_id,
         graph_builder::haversine_m(
-            config.from.0, config.from.1,
-            road_graph.graph[start_node].lat, road_graph.graph[start_node].lon
+            config.from.0,
+            config.from.1,
+            road_graph.graph[start_node].lat,
+            road_graph.graph[start_node].lon
         )
     );
     log::info!(
         "Snapped target to OSM node {} (offset: {:.1}m)",
         target_osm_id,
         graph_builder::haversine_m(
-            config.to.0, config.to.1,
-            road_graph.graph[target_node].lat, road_graph.graph[target_node].lon
+            config.to.0,
+            config.to.1,
+            road_graph.graph[target_node].lat,
+            road_graph.graph[target_node].lon
         )
     );
 
