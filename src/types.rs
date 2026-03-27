@@ -1,5 +1,5 @@
-/// All shared data types for the antmap engine.
-/// This module contains only plain data structures — no business logic.
+//! All shared data types for the antmap engine.
+//! This module contains only plain data structures — no business logic.
 
 // ---------------------------------------------------------------------------
 // OSM raw types (output of osm_parser.rs)
@@ -118,6 +118,7 @@ pub struct NodeData {
 
 /// Data stored on each **directed edge** of the routing graph.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct EdgeData {
     /// OSM way id this edge was derived from.
     pub osm_way_id: i64,
@@ -214,6 +215,7 @@ pub struct BoundingBox {
 
 impl BoundingBox {
     /// Build a box centred on `(lat, lon)` with a given radius in kilometres.
+    #[allow(dead_code)]
     pub fn from_center(lat: f64, lon: f64, radius_km: f64) -> Self {
         // 1° lat ≈ 111 km; 1° lon ≈ 111 km · cos(lat)
         let delta_lat = radius_km / 111.0;
@@ -228,7 +230,7 @@ impl BoundingBox {
 
     /// Returns `(south, west, north, east)` as a comma-separated string,
     /// ready for inclusion in an Overpass QL query.
-    pub fn to_overpass_filter(&self) -> String {
+    pub fn to_overpass_filter(self) -> String {
         format!(
             "{:.6},{:.6},{:.6},{:.6}",
             self.south, self.west, self.north, self.east

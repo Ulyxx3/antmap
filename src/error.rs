@@ -21,8 +21,6 @@ pub enum AntmapError {
     NoPathFound { from: i64, to: i64 },
 
     // --- ACO ---
-    #[error("ACO configuration is invalid: {0}")]
-    InvalidConfig(String),
 
     // --- I/O ---
     #[error("I/O error: {0}")]
