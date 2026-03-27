@@ -1,0 +1,48 @@
+[package]
+name = "antmap"
+version = "0.1.0"
+edition = "2021"
+description = "Ant Colony Optimization routing engine over real OpenStreetMap data"
+license = "MIT"
+
+[[bin]]
+name = "antmap"
+path = "src/main.rs"
+
+[dependencies]
+# --- Graph ---
+# Directed weighted graph structure for the road network
+petgraph = "0.6"
+
+# --- Parallelism ---
+# One thread per ant per iteration
+rayon = "1.10"
+
+# --- OSM / HTTP ---
+# HTTP client to query the Overpass API
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+# JSON deserialisation (Overpass API response)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# --- Error handling ---
+# Idiomatic error types with automatic Display/From impls
+thiserror = "2"
+# Ergonomic error propagation in main (anyhow wraps any Error)
+anyhow = "1"
+
+# --- CLI ---
+# Argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# --- Logging ---
+log = "0.4"
+env_logger = "0.11"
+
+# --- Random (probabilistic ant choice) ---
+rand = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
