@@ -179,7 +179,7 @@ fn run_ant(
     let mut current_node = start;
     let mut path_nodes = vec![start];
     let mut path_edges = Vec::new();
-    
+
     // Nodes that are strictly dead-ends (no way forward) are added here when backtracking.
     let mut dead_ends = std::collections::HashSet::new();
 
@@ -206,7 +206,7 @@ fn run_ant(
 
         for edge_ref in road_graph.graph.edges(current_node) {
             let next_node = edge_ref.target();
-            
+
             // Never enter a known dead-end branch
             if dead_ends.contains(&next_node) {
                 continue;
@@ -293,7 +293,7 @@ fn run_ant(
         // Recompute the sum of the final, loop-free path
         let mut total_time_s = 0.0;
         let mut total_distance_m = 0.0;
-        
+
         for &e_idx in &path_edges {
             let weight = road_graph.graph.edge_weight(e_idx).unwrap();
             total_time_s += weight.travel_time_s;
