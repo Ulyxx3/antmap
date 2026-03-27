@@ -1,15 +1,14 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use log::info;
 
 mod aco_solver;
+mod engine;
 mod error;
 mod graph_builder;
+mod gui;
 mod osm_parser;
 mod types;
-
-use crate::types::{BoundingBox, ColonyConfig};
 
 /// antmap — ACO routing engine
 #[derive(Parser, Debug)]
@@ -17,11 +16,11 @@ use crate::types::{BoundingBox, ColonyConfig};
 struct Args {
     /// Start coordinates: "lat,lon"
     #[arg(long, value_parser = parse_coords)]
-    from: (f64, f64),
+    from: Option<(f64, f64)>,
 
     /// Target coordinates: "lat,lon"
     #[arg(long, value_parser = parse_coords)]
-    to: (f64, f64),
+    to: Option<(f64, f64)>,
 
     /// Read local OpenStreetMap JSON file instead of querying Overpass API
     #[arg(long, short)]
@@ -67,122 +66,58 @@ fn main() -> anyhow::Result<()> {
     // 1. Initialise logging
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    // 2. Parse CLI arguments
-    let args = Args::parse();
+    // 2. Hybrid Launch: if no arguments are provided, launch GUI!
+    let cli_args: Vec<String> = std::env::args().collect();
+    let is_gui = cli_args.len() <= 1;
 
-    let config = ColonyConfig {
-        ant_count: args.ants,
+    if is_gui {
+        let native_options = eframe::NativeOptions {
+            viewport: eframe::egui::ViewportBuilder::default()
+                .with_inner_size([400.0, 500.0])
+                .with_min_inner_size([300.0, 400.0]),
+            ..Default::default()
+        };
+        return match eframe::run_native(
+            "🐜 Antmap - ACO Routing",
+            native_options,
+            Box::new(|cc| Box::new(gui::AntmapApp::new(cc))),
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow::anyhow!("Eframe error: {}", e)),
+        };
+    }
+
+    // 3. Otherwise, parse CLI arguments normally
+    let args = Args::parse();
+    
+    // Validate required arguments for CLI
+    let from = args.from.ok_or_else(|| anyhow::anyhow!("--from is required in CLI mode"))?;
+    let to = args.to.ok_or_else(|| anyhow::anyhow!("--to is required in CLI mode"))?;
+
+    let config = engine::EngineConfig {
+        from,
+        to,
+        input: args.input,
+        ants: args.ants,
         iterations: args.iterations,
         alpha: args.alpha,
         beta: args.beta,
         rho: args.rho,
-        ..Default::default()
     };
 
-    // 3. Load or fetch OSM Data
-    let osm_data = match args.input {
-        Some(path) => osm_parser::load_from_file(&path)?,
-        None => {
-            // Compute a bounding box wrapping both coords + 0.008° margin (~800m)
-            // The public Overpass API restricts large queries during peak hours (504 Timeout)
-            let margin = 0.008;
-            let bbox = BoundingBox {
-                south: args.from.0.min(args.to.0) - margin,
-                north: args.from.0.max(args.to.0) + margin,
-                west: args.from.1.min(args.to.1) - margin,
-                east: args.from.1.max(args.to.1) + margin,
-            };
-            osm_parser::fetch_from_overpass(bbox, osm_parser::DEFAULT_OVERPASS_URL)?
-        }
-    };
+    // 4. Run the decoupled engine
+    let result = engine::run_routing(config)?;
 
-    // 4. Build routing graph
-    let road_graph = graph_builder::build_graph(&osm_data)?;
-
-    // 5. Snap coordinates to nearest road nodes
-    let start_node = road_graph
-        .nearest_node(args.from.0, args.from.1)
-        .ok_or_else(|| anyhow::anyhow!("No road nodes found near start coordinate"))?;
-
-    let target_node = road_graph
-        .nearest_node(args.to.0, args.to.1)
-        .ok_or_else(|| anyhow::anyhow!("No road nodes found near target coordinate"))?;
-
-    let start_osm_id = road_graph.graph[start_node].osm_id;
-    let target_osm_id = road_graph.graph[target_node].osm_id;
-
-    let start_snap_dist = graph_builder::haversine_m(
-        args.from.0,
-        args.from.1,
-        road_graph.graph[start_node].lat,
-        road_graph.graph[start_node].lon,
-    );
-    let target_snap_dist = graph_builder::haversine_m(
-        args.to.0,
-        args.to.1,
-        road_graph.graph[target_node].lat,
-        road_graph.graph[target_node].lon,
-    );
-
-    info!(
-        "Snapped start to OSM node {} (offset: {:.1}m)",
-        start_osm_id, start_snap_dist
-    );
-    info!(
-        "Snapped target to OSM node {} (offset: {:.1}m)",
-        target_osm_id, target_snap_dist
-    );
-
-    // 6. Run ACO solver
-    let route = aco_solver::solve(&road_graph, start_osm_id, target_osm_id, &config)?;
-
-    // 7. Output result
+    // 5. Output result
     println!("\n===========================================");
     println!("🐜 Route Found!");
-    println!("Time: {}", route.formatted_time());
-    println!("Distance: {:.1} km", route.total_distance_m / 1000.0);
-    println!("Waypoints: {} nodes traversed", route.node_ids.len());
+    println!("Time: {}", result.route.formatted_time());
+    println!("Distance: {:.1} km", result.route.total_distance_m / 1000.0);
+    println!("Waypoints: {} nodes traversed", result.route.node_ids.len());
     println!("===========================================\n");
 
-    // 8. Export GeoJSON for visual rendering
-    let mut coord_strings = Vec::with_capacity(route.node_ids.len());
-    for &osm_id in &route.node_ids {
-        if let Ok(idx) = road_graph.get_node(osm_id) {
-            let nd = &road_graph.graph[idx];
-            // GeoJSON expects [longitude, latitude]
-            coord_strings.push(format!("[{:.6}, {:.6}]", nd.lon, nd.lat));
-        }
-    }
-
-    if !coord_strings.is_empty() {
-        let geojson = format!(
-            r##"{{
-  "type": "FeatureCollection",
-  "features": [
-    {{
-      "type": "Feature",
-      "geometry": {{
-        "type": "LineString",
-        "coordinates": [
-          {}
-        ]
-      }},
-      "properties": {{
-        "name": "Ant Route",
-        "time": "{}",
-        "distance_km": {:.2},
-        "stroke": "#ff2600",
-        "stroke-width": 4
-      }}
-    }}
-  ]
-}}"##,
-            coord_strings.join(",\n          "),
-            route.formatted_time(),
-            route.total_distance_m / 1000.0
-        );
-
-        std::fs::write("route.geojson", geojson)?;
+    if !result.geojson.is_empty() {
+        std::fs::write("route.geojson", &result.geojson)?;
         println!("🗺️  Visual map saved to 'route.geojson'.");
         println!("👉 Drag & drop this file onto https://geojson.io to view your route!");
         println!();
