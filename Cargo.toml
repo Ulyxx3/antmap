@@ -45,6 +45,7 @@ rand = "0.8"
 # --- GUI ---
 eframe = "0.27"
 webbrowser = "0.8"
+rfd = "0.14"
 
 [profile.release]
 opt-level = 3

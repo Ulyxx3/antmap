@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 
 use crate::engine::{run_routing, EngineConfig, EngineResult};
@@ -14,6 +15,8 @@ pub struct AntmapApp {
     alpha: f64,
     beta: f64,
     rho: f64,
+
+    input_file: Option<PathBuf>,
 
     computation_receiver: Option<Receiver<anyhow::Result<EngineResult>>>,
     last_result: Option<anyhow::Result<EngineResult>>,
@@ -32,6 +35,8 @@ impl Default for AntmapApp {
             alpha: 1.0,
             beta: 3.0,
             rho: 0.1,
+
+            input_file: None,
 
             computation_receiver: None,
             last_result: None,
@@ -82,6 +87,30 @@ impl eframe::App for AntmapApp {
 
                 ui.add_space(10.0);
 
+                ui.group(|ui| {
+                    ui.label("Map Data Source 🗺️");
+                    ui.horizontal(|ui| {
+                        if ui.button("📂 Load local .json").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("OSM JSON", &["json"])
+                                .pick_file()
+                            {
+                                self.input_file = Some(path);
+                            }
+                        }
+                        if let Some(path) = &self.input_file {
+                            ui.label(format!("Loaded: {}", path.file_name().unwrap_or_default().to_string_lossy()));
+                            if ui.button("❌").clicked() {
+                                self.input_file = None;
+                            }
+                        } else {
+                            ui.label(egui::RichText::new("Using Overpass API (Live Download)").italics());
+                        }
+                    });
+                });
+
+                ui.add_space(10.0);
+
                 ui.collapsing("Advanced Parameters ⚙️", |ui| {
                     ui.add(egui::Slider::new(&mut self.ants, 10..=500).text("Ants per iteration"));
                     ui.add(egui::Slider::new(&mut self.iterations, 10..=500).text("Iterations"));
@@ -102,7 +131,7 @@ impl eframe::App for AntmapApp {
                         let config = EngineConfig {
                             from: (from_lat, from_lon),
                             to: (to_lat, to_lon),
-                            input: None,
+                            input: self.input_file.clone(),
                             ants: self.ants,
                             iterations: self.iterations,
                             alpha: self.alpha,
