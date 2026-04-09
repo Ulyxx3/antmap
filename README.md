@@ -95,4 +95,4 @@ cargo build --release
 
 ## License
 
-MIT © Ulysse
+MIT © Ulyxx3
